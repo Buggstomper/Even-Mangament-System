@@ -866,3 +866,96 @@ LEFT JOIN Events e ON t.EventID = e.EventID
 WHERE c.SpecialNeeds IS NOT NULL AND c.SpecialNeeds != 'None'
 GROUP BY c.CustomerID, u.FirstName, u.LastName, c.SpecialNeeds
 ORDER BY EventsAttended DESC;
+
+
+-- 16: Customers with Above-Average Bookings
+SELECT 
+    u.UserID,
+    CONCAT(u.FirstName, ' ', u.LastName) AS CustomerName,
+    COUNT(b.BookingID) AS TotalBookings
+FROM Users u
+JOIN Bookings b ON u.UserID = b.UserID
+GROUP BY u.UserID
+HAVING COUNT(b.BookingID) > (
+    SELECT AVG(booking_count) 
+    FROM (
+        SELECT COUNT(BookingID) AS booking_count
+        FROM Bookings
+        GROUP BY UserID
+    ) AS avg_bookings
+)
+ORDER BY TotalBookings DESC;
+
+-- 17: Events with Both Vegetarian and Non-Vegetarian Food Options
+SELECT 
+    e.EventID,
+    e.EventName,
+    e.StartDateTime
+FROM Events e
+WHERE EXISTS (
+    SELECT 1
+    FROM Event_Food ef
+    JOIN FoodCategories fc ON ef.FoodID = fc.CategoryID
+    WHERE ef.EventID = e.EventID 
+    AND fc.Type = 'Vegetarian'
+)
+AND EXISTS (
+    SELECT 1
+    FROM Event_Food ef
+    JOIN FoodCategories fc ON ef.FoodID = fc.CategoryID
+    WHERE ef.EventID = e.EventID 
+    AND fc.Type = 'Non-Vegetarian'
+);
+
+-- 18: Venues with Above-Average Capacity Events
+SELECT 
+    v.VenueID,
+    v.VenueTitle,
+    v.Capacity,
+    COUNT(e.EventID) AS EventsHosted
+FROM Venues v
+JOIN Events e ON v.VenueID = e.VenueID
+WHERE v.Capacity > (
+    SELECT AVG(Capacity) 
+    FROM Venues
+)
+GROUP BY v.VenueID, v.VenueTitle, v.Capacity
+ORDER BY EventsHosted DESC;
+
+-- 19: Staff Earning More Than Department Average Salary
+SELECT 
+    s.StaffID,
+    CONCAT(u.FirstName, ' ', u.LastName) AS StaffName,
+    d.DepartmentName,
+    s.Salary,
+    (SELECT AVG(Salary) 
+     FROM Staff s2 
+     WHERE s2.DepartmentID = s.DepartmentID) AS DeptAvgSalary
+FROM Staff s
+JOIN Users u ON s.UserID = u.UserID
+JOIN Departments d ON s.DepartmentID = d.DepartmentID
+WHERE s.Salary > (
+    SELECT AVG(Salary)
+    FROM Staff s3
+    WHERE s3.DepartmentID = s.DepartmentID
+);
+
+-- 20: Events with Sponsorship Above Average for Their Type
+SELECT 
+    e.EventID,
+    e.EventName,
+    et.TypeName AS EventType,
+    es.ContributionAmount,
+    (SELECT AVG(ContributionAmount) 
+     FROM Event_Sponsors es2
+     JOIN Events e2 ON es2.EventID = e2.EventID
+     WHERE e2.EventTypeID = e.EventTypeID) AS AvgForType
+FROM Events e
+JOIN EventTypes et ON e.EventTypeID = et.EventTypeID
+JOIN Event_Sponsors es ON e.EventID = es.EventID
+WHERE es.ContributionAmount > (
+    SELECT AVG(ContributionAmount)
+    FROM Event_Sponsors es3
+    JOIN Events e3 ON es3.EventID = e3.EventID
+    WHERE e3.EventTypeID = e.EventTypeID
+);
